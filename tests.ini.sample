@@ -1,4 +1,0 @@
-[tests]
-db = test
-pool_size = 4
-;ext = 1

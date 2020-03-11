@@ -13,11 +13,17 @@ peewee-async
 
 Current state: **alpha**, yet API seems fine and mostly stable.
 
-* Works on Python 3.3+
-* Databases supported: PostgreSQL
-* Provides drop-in replacement for synchronous code
+In current version (0.5.x) new-high level API is introduced while older low-level API partially marked as deprecated.
 
-Source code hosted on `GitHub`_.
+* Works on Python 3.4+
+* Has support for PostgreSQL via `aiopg`
+* Has support for MySQL via `aiomysql`
+* Single point for high-level async API
+* Drop-in replacement for sync code, sync will remain sync
+* Basic operations are supported
+* Transactions support is present, yet not heavily tested
+
+The source code is hosted on `GitHub`_.
 
 .. _GitHub: https://github.com/05bit/peewee-async
 
@@ -30,8 +36,9 @@ Quickstart
     import peewee
     import peewee_async
 
+    # Nothing special, just define model and database:
+
     database = peewee_async.PostgresqlDatabase('test')
-    loop = asyncio.get_event_loop()
 
     class TestModel(peewee.Model):
         text = peewee.CharField()
@@ -39,31 +46,55 @@ Quickstart
         class Meta:
             database = database
 
-    # Create table synchronously!
+    # Look, sync code is working!
+
     TestModel.create_table(True)
-    # This is optional: close sync connection
+    TestModel.create(text="Yo, I can do it sync!")
     database.close()
 
-    @asyncio.coroutine
-    def my_handler():
-        TestModel.create(text="Yo, I can do it sync!")
-        yield from peewee_async.create_object(TestModel, text="Not bad. Watch this, I'm async!")
-        all_objects = yield from peewee_async.execute(TestModel.select())
+    # Create async models manager:
+
+    objects = peewee_async.Manager(database)
+
+    # No need for sync anymore!
+
+    database.set_allow_sync(False)
+
+    async def handler():
+        await objects.create(TestModel, text="Not bad. Watch this, I'm async!")
+        all_objects = await objects.execute(TestModel.select())
         for obj in all_objects:
             print(obj.text)
 
-    loop.run_until_complete(database.connect_async(loop=loop))
-    loop.run_until_complete(my_handler())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(handler())
+    loop.close()
+
+    # Clean up, can do it sync again:
+    with objects.allow_sync():
+        TestModel.drop_table(True)
+
+    # Expected output:
+    # Yo, I can do it sync!
+    # Not bad. Watch this, I'm async!
 
 
 Install
 -------
 
-Install latest version from PyPI:
+Install latest version from PyPI.
+
+For PostgreSQL:
 
 .. code-block:: console
 
-    pip install peewee-async
+    pip install peewee-async aiopg
+
+For MySQL:
+
+.. code-block:: console
+
+    pip install peewee-async aiomysql
 
 Install from sources
 ++++++++++++++++++++
@@ -81,7 +112,7 @@ Prepare environment for tests:
 
 * Clone source code from GitHub as shown above
 * Create PostgreSQL database for testing, i.e. named 'test'
-* Create ``tests.ini`` config file based on ``tests.ini.sample``
+* Create ``tests.json`` config file based on ``tests.json.sample``
 
 Then run tests:
 
@@ -103,6 +134,8 @@ Contents
    :maxdepth: 2
 
    peewee_async/api
+   peewee_async/api_older
+   peewee_async/tornado
    peewee_async/examples
 
 Indices and tables
